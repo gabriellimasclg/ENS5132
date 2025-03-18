@@ -1,8 +1,3 @@
 ###
  
-oioioi
-
-#oi
-
-- oi
-- oi
+Aula de Python para ESA
