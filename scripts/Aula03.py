@@ -102,3 +102,7 @@ maxMat4D = matRand4D.max(axis=0) #encontrar a máxima
 #%%
 
 #df.describe faz toda a esttística
+
+
+
+
