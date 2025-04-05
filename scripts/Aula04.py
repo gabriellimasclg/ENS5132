@@ -126,11 +126,14 @@ df['SO4'][0] = 1
 #criando variável com o nome do estado
 uf = 'SP'
 
-# Definindo o caminho para a pasta de dados
-dataDir= r'C:\Users\Gabriel\OneDrive\GitHub\ENS5132\data' + '/' + uf
+# Ajustes iniciais
+dataDir= os.path.join(r'C:\Users\Gabriel\OneDrive\GitHub\ENS5132\data', uf) # Definindo o caminho para a pasta de dados
+outputDir = os.path.join(dataDir, 'dados_por_estacao') # Criando subpasta para os dados processados
+os.makedirs(outputDir, exist_ok=True)  # Cria a pasta se não existir
 
-# Lista de arquivos dentro da pasta
-dataList = os.listdir(dataDir)
+# Listar apenas arquivos CSV (ignorando diretórios)
+dataList = [f for f in os.listdir(dataDir) 
+           if f.endswith('.csv') and os.path.isfile(os.path.join(dataDir, f))]
 
 #movendo para a pasta dataDir
 os.chdir(dataDir)
@@ -151,36 +154,112 @@ stations = pd.unique(allFiles['Estacao'])
 #Usando lógica p pegar os dados de uma só estação, a primeira da stations
 stationDf = allFiles[allFiles['Estacao']== stations[0]]
 
-# Criando coluna datetime
-datetimeDf = pd.to_datetime(stationDf.Data, format = '%Y-%m-%d')
+# 1. Primeiro convertemos a coluna 'Data' para datetime
+stationDf['Data'] = pd.to_datetime(stationDf['Data'], format = '%Y-%m-%d')
 
-stationDf['datetime'] = datetimeDf
+# 2. Substituímos "24:00" por "00:00" e identificamos essas linhas
+mask = stationDf['Hora'] == '24:00'
+stationDf.loc[mask, 'Hora'] = '00:00'
 
-#transformando a coluna dde datetime em index
-stationDf = stationDf.set_index(stationDf['datetime'])
+# 3. Avançamos a data em 1 dia APENAS para os casos de 24:00
+stationDf.loc[mask, 'Data'] = stationDf.loc[mask, 'Data'] + pd.Timedelta(days=1)
 
-#Extraindo o ano
+# 4. Agora criamos a coluna datetime combinando corretamente
+stationDf['datetime'] = pd.to_datetime(
+    stationDf['Data'].dt.strftime('%Y-%m-%d') + ' ' + stationDf['Hora'],
+    format='%Y-%m-%d %H:%M'
+)
+
+# 5. Definindo como índice
+stationDf = stationDf.set_index('datetime')
+
+# Se precisar das colunas separadas, pode extrair depois do índice
 stationDf['year'] = stationDf.index.year
-stationDf['month'] = stationDf.index.month
-stationDf['day'] = stationDf.index.day
 
-#extraindo a hora
+#%% vou fazer a mesma coisa, mas agora a tarefa 2 que o professor pediu
 
-horaDf = []
-horas = stationDf.Hora.str.split(':')
-for hora in horas:
-    print(hora[0])
-    horaDf.append(hora[0])
+#criando variável com o nome do estado
+uf = 'SP'
 
-stationDf['hour'] = horaDf
+# Ajustes iniciais
+dataDir= os.path.join(r'C:\Users\Gabriel\OneDrive\GitHub\ENS5132\data', uf) # Definindo o caminho para a pasta de dados
+outputDir = os.path.join(dataDir, 'dados_por_estacao') # Criando subpasta para os dados processados
+os.makedirs(outputDir, exist_ok=True)  # Cria a pasta se não existir
 
-#corrigindo a coluna datetime
+# Listar apenas arquivos CSV (ignorando diretórios)
+dataList = [f for f in os.listdir(dataDir) 
+           if f.endswith('.csv') and os.path.isfile(os.path.join(dataDir, f))]
 
-stationDf['datetime'] = pd.to_datetime(stationDf.astype(str).year+
-                                       stationDf.astype(str).month+
-                                       stationDf.astype(str).day +
-                                       stationDf.astype(str).hour,
-                                       format='%Y%m%d%H')
+#movendo para a pasta dataDir
+os.chdir(dataDir)
+
+# colocando todos os nomes dos arquivos num df
+allFiles = [] #lista vazia p inserir os df
+
+for fileInList in dataList:
+    print(fileInList) #printa o nome do csv na pasta
+    dfConc = pd.read_csv(fileInList, encoding='latin1') #le o csv na pasta
+    allFiles.append(dfConc) #adiciona o csv lido no all files
+
+allFiles = pd.concat(allFiles) #transforma a lista de df em um df único
+
+#Extraindo nomes das estações sem redundância
+stations = pd.unique(allFiles['Estacao'])
+
+for i, station in enumerate(stations):
+    stationDf = allFiles[allFiles['Estacao']== station].copy()
+    
+    # 1. Primeiro convertemos a coluna 'Data' para datetime
+    stationDf['Data'] = pd.to_datetime(stationDf['Data'], format = '%Y-%m-%d')
+
+    # 2. Substituímos "24:00" por "00:00" e identificamos essas linhas
+    mask = stationDf['Hora'] == '24:00'
+    stationDf.loc[mask, 'Hora'] = '00:00'
+
+    # 3. Avançamos a data em 1 dia APENAS para os casos de 24:00
+    stationDf.loc[mask, 'Data'] = stationDf.loc[mask, 'Data'] + pd.Timedelta(days=1)
+
+    # 4. Agora criamos a coluna datetime combinando corretamente
+    stationDf['datetime'] = pd.to_datetime(
+        stationDf['Data'].dt.strftime('%Y-%m-%d') + ' ' + stationDf['Hora'],
+        format='%Y-%m-%d %H:%M'
+    )
+
+    # 5. Definindo como índice
+    stationDf = stationDf.set_index('datetime')
+    
+    #drop multiple columns by name
+    stationDf. drop (['Data', 'Hora'], axis= 1 , inplace= True )
+    
+    stationDf['year'] = stationDf.index.year    
+    stationDf['month'] = stationDf.index.month
+    stationDf['day'] = stationDf.index.day
+    stationDf['hour'] = stationDf.index.hour
+    
+    # 6. Exportando para CSV
+    nome_arquivo = f'dados_estacao_{station.lower().replace(" ", "").replace("-", "_")}.csv'
+    caminho_completo = os.path.join(outputDir, nome_arquivo)
+    
+    # Usando o método to_csv do DataFrame, não do pandas diretamente
+    stationDf.to_csv(caminho_completo, index=True, encoding='utf-8-sig')
+    print(f"Arquivo salvo em: {caminho_completo}")
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
